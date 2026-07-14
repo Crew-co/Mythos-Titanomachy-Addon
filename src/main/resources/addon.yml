@@ -1,7 +1,6 @@
 name: Titanomachy
-version: 0.0.1
+version: 0.1.1
 main: net.crewco.mythos.titanomachy.TitanomachyAddon
-api-version: 1
+api-version: 2
 authors: [ Crew-co ]
 description: Kronos eats his children. One of them survives. Ten years of war.
-depends: [ MythosCore ]

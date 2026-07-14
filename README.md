@@ -2,21 +2,26 @@
 
 Kronos eats his children. One survives. Ten years of war. **Story #2 — the era `titanomachy`.**
 
-A story addon for [MythosCore](https://github.com/Crew-co/MythosCore), built on
+A story addon for the [Mythos](https://github.com/Crew-co/Mythos) engine, built on
 [FoliaAddonTemplate](https://github.com/Crew-co/FoliaAddonTemplate). Its own repo, its
-own jar, its own release cycle.
+own jar, its own release cycle — and exactly one dependency:
+
+```kotlin
+compileOnly("net.crewco:mythos-addon-api:0.1.0")
+```
+
+No `depends:` in addon.yml. The engine is the plugin, not an addon: it's already running
+before this jar is loaded.
 
 ## Build
 
 ```bash
-# once, in the host repo:   ./gradlew publishApiLocally
-# once, in MythosCore:      ./gradlew publishCoreLocally
+# once, in the Mythos repo:  ./gradlew publishApiLocally
 ./gradlew build          # → build/libs/Titanomachy-0.1.0.jar
 ./gradlew deployAddon    # set testServerPath in ~/.gradle/gradle.properties first
 ```
 
-Drop the jar in `plugins/Mythos/addons/` next to `MythosCore.jar`. `/addons` should
-list it.
+Drop the jar in `plugins/Mythos/addons/`. `/addons` should list it.
 
 ## What it registers
 
@@ -46,4 +51,5 @@ That's the pattern for *extending a myth you don't own*. Use it.
 **The war.** Cross-faction kills are tallied. Kronos is literally unkillable until the
 tally hits `war.kills-to-end` — and then only by a god holding one of the three gifts.
 
-`compileOnly` on both `mythos-addon-api` and `mythos-core`. Never shade either.
+`compileOnly`, never `implementation` — a shaded copy of the API is a different class
+with the same name, and the addon silently refuses to load.

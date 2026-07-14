@@ -17,6 +17,12 @@ class WarState(private val file: File) {
 
     fun total() = titanKills.get() + olympianKills.get()
 
+    fun clear() {
+        titanKills.set(0)
+        olympianKills.set(0)
+        forged.clear()
+    }
+
     /** Blocking write — call from the async scheduler. */
     @Synchronized
     fun save() {

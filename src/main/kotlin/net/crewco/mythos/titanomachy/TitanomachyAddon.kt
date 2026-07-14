@@ -2,6 +2,11 @@ package net.crewco.mythos.titanomachy
 
 import net.crewco.mythos.addon.AddonBase
 import net.crewco.mythos.api.Mythos
+import net.crewco.mythos.api.era.Objective
+import net.crewco.mythos.api.ext.consume
+import net.crewco.mythos.api.role.ClaimRules
+import net.crewco.mythos.api.role.Endurance
+import net.crewco.mythos.api.role.RoleDefinition
 import net.crewco.mythos.titanomachy.TitanomachyContent.Companion.ERA
 import net.crewco.mythos.titanomachy.TitanomachyContent.Companion.IMPRISONED
 import net.crewco.mythos.titanomachy.TitanomachyContent.Companion.SWALLOWED
@@ -27,7 +32,12 @@ class TitanomachyAddon : AddonBase() {
         val config = loadConfig()
 
         val content = TitanomachyContent(mythos)
-        val places = Places(context, mythos, config)
+        val places = Places(context, mythos)
+
+        // The stomach is ours. Tartarus belongs to EraOfCreation — but if that jar isn't here,
+        // somebody still has to dig the pit.
+        mythos.realms.register(content.STOMACH)
+        if (mythos.realms.realm("tartarus") == null) mythos.realms.register(content.TARTARUS_FALLBACK)
         val war = WarState(File(context.dataFolder, "war.yml"))
 
         mythos.eras.register(content.era)
@@ -47,6 +57,48 @@ class TitanomachyAddon : AddonBase() {
         mythos.powers.register(QuakePower(context))
         mythos.powers.register(UnseenPower(context))
         mythos.powers.register(HundredfoldPower(context))
+        mythos.powers.register(ProphesyPower(mythos, context))
+
+        // ---- reaching into a story this addon didn't write ---------------------
+        //
+        // Gaia belongs to EraOfCreation. She has been through exactly this before — she
+        // watched her own husband get cut down by his son — so in THIS age she gains a
+        // power that addon never gave her: she can tell you how it ends.
+        //
+        // extend() returns false if Gaia isn't registered (Creation isn't installed).
+        // That is not an error. It's a story that isn't being told on this server.
+        if (mythos.roles.extend("gaia") { it.copy(powers = (it.powers + "prophesy").distinct()) }) {
+            context.logger.info("Gaia remembers the last time. She has been given the gift of prophecy.")
+        }
+
+        // ---- opening a hole in ourselves ---------------------------------------
+        //
+        // We don't know who fought in this war — some of them haven't been written yet.
+        // Any addon, ever, can post an ally here and it becomes a claimable role and a
+        // beat of this era. Contributions are replayed, so load order doesn't matter.
+        mythos.extensions.consume<WarAlly>(WarAlly.POINT) { ally ->
+            mythos.roles.register(
+                RoleDefinition(
+                    id = ally.id,
+                    displayName = ally.name,
+                    tier = ally.tier,
+                    era = ERA,
+                    domains = listOf("the war", ally.side),
+                    maxHolders = ally.seats,
+                    color = if (ally.side == WarAlly.OLYMPIAN) "<yellow>" else "<gold>",
+                    lore = listOf(ally.lore),
+                    powers = ally.powers,
+                    claimRules = listOf(ClaimRules.duringEra(ERA)),
+                    endurance = Endurance.ERA, // the war ends; the allies go home
+                ),
+            )
+            // ...and the war itself grows a beat it didn't have before.
+            mythos.eras.addObjective(
+                ERA,
+                Objective("ally_${ally.id}", "${ally.name} comes over to the ${ally.side}s", optional = true),
+            )
+            context.logger.info("${ally.name} joined the war (contributed by another addon)")
+        }
 
         context.registerListener(
             TitanomachyListener(
@@ -67,8 +119,8 @@ class TitanomachyAddon : AddonBase() {
                 Bukkit.getOnlinePlayers().forEach { player ->
                     val profile = mythos.profiles.profile(player.uniqueId)
                     when {
-                        profile.hasFlag(SWALLOWED) -> places.leash(player, places.stomach(), SWALLOWED)
-                        profile.hasFlag(IMPRISONED) -> places.leash(player, places.tartarus(), IMPRISONED)
+                        profile.hasFlag(SWALLOWED) -> places.leash(player, "stomach", SWALLOWED)
+                        profile.hasFlag(IMPRISONED) -> places.leash(player, "tartarus", IMPRISONED)
                     }
                 }
             }

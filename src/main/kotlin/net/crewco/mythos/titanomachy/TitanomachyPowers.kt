@@ -95,18 +95,21 @@ class DevourPower(
             profile.setFlag(HIDDEN, null)
         }
 
+        // Not a hole at bedrock. A world, with the others already in it.
         places.imprison(
             target,
-            places.stomach(),
+            "stomach",
             SWALLOWED,
-            "<dark_red>It is dark, and wet, and you can hear your siblings breathing. <gray>You are not dead. You are <white>inside him<gray>.",
+            "<dark_red>You can hear your siblings breathing. <gray>They are in here with you.",
         )
         Bukkit.getServer().sendMessage(mm("<dark_gray>» <gold>Kronos <gray>swallows <yellow>${role.displayName}<gray>, whole."))
 
         val swallowed = content.olympians.count { olympian ->
             mythos.roles.holders(olympian.id).any { mythos.profiles.profile(it).hasFlag(SWALLOWED) }
         }
-        if (swallowed >= 5) mythos.eras.complete(ERA, "the_swallowing", "five children, and a stomach that never fills")
+        if (swallowed >= mythos.dev.threshold(5)) {
+            mythos.eras.complete(ERA, "the_swallowing", "five children, and a stomach that never fills")
+        }
         return true
     }
 }
@@ -137,7 +140,7 @@ class StonePower(
 
         mythos.profiles.profile(target.uniqueId).setFlag(HIDDEN, true)
 
-        val kronos = mythos.roles.holders("kronos").mapNotNull { Bukkit.getPlayer(it) }.firstOrNull()
+        val kronos = mythos.roles.holders("kronos").firstNotNullOfOrNull { Bukkit.getPlayer(it) }
         if (kronos == null) {
             rhea.sendMessage(mm("<red>He isn't here to be lied to.")); return false
         }
@@ -146,7 +149,7 @@ class StonePower(
             kronos.sendMessage(mm("<gray>Rhea hands you the child, wrapped tight. <dark_gray><i>She is not crying. You don't wonder why."))
         }
 
-        val hiding = places.crete()
+        val hiding = places.crete() ?: return false.also { rhea.sendMessage(mm("<red>There is nowhere to hide him.")) }
         target.teleportAsync(hiding).thenRun {
             context.schedulers.entity(target) {
                 target.sendMessage(mm("<green>A cave. A goat. Noise, constantly, so he can't hear you cry."))
@@ -213,7 +216,7 @@ class FreePower(
             places.release(
                 prisoner,
                 IMPRISONED,
-                places.surface(),
+                "gaia",
                 "<gold>Light. You have not seen it since before there was a sky to hang it in.",
             )
             context.schedulers.entity(prisoner) {
@@ -227,7 +230,9 @@ class FreePower(
         val freed = (content.cyclopes + content.hekatoncheires)
             .flatMap { mythos.roles.holders(it.id) }
             .count { !mythos.profiles.profile(it).hasFlag(IMPRISONED) }
-        if (freed >= 3) mythos.eras.complete(ERA, "the_cyclopes", "the smiths were let out, and they were grateful")
+        if (freed >= mythos.dev.threshold(3)) {
+            mythos.eras.complete(ERA, "the_cyclopes", "the smiths were let out, and they were grateful")
+        }
         return true
     }
 }
@@ -267,7 +272,8 @@ class ForgePower(
             god.inventory.addItem(Regalia.item(kind, context))
             god.sendMessage(mm("<gold>The Cyclopes give you a gift. <gray>It is the reason you win."))
         }
-        Bukkit.getServer().sendMessage(mm("<dark_gray>» <dark_aqua>${smith.name} <gray>forges something for <yellow>$godId<gray>."))
+        context.schedulers.global { Bukkit.getServer().sendMessage(mm("<dark_gray>» <dark_aqua>${smith.name} <gray>forges something for <yellow>$godId<gray>."))
+        }
         context.schedulers.async { war.save() }
         return true
     }
@@ -293,6 +299,17 @@ class ThunderboltPower(private val mythos: Mythos, private val context: AddonCon
         context.schedulers.entity(target) {
             target.world.strikeLightning(target.location)
             target.damage(30.0, zeus)
+
+            // THE WORLD IS DIFFERENT AFTERWARDS. A thunderbolt leaves a scar you can walk
+            // back to a year later, which is the whole difference between a power and a
+            // status effect.
+            val ground = target.location
+            for (x in -2..2) for (z in -2..2) {
+                if (x * x + z * z > 5) continue
+                val block = ground.clone().add(x.toDouble(), -1.0, z.toDouble()).block
+                if (block.type.isSolid) block.type = org.bukkit.Material.BLACKSTONE
+            }
+            ground.clone().add(0.0, 0.0, 0.0).block.let { if (it.type.isAir) it.type = org.bukkit.Material.FIRE }
         }
         return true
     }
@@ -316,7 +333,22 @@ class QuakePower(private val context: AddonContext) : Power {
                 victim.velocity = Vector(victim.velocity.x, 1.4, victim.velocity.z)
                 victim.damage(8.0, poseidon)
             }
-        poseidon.world.createExplosion(poseidon.location, 0f, false, false)
+
+        // The Earth-shaker shakes the earth. Fissures open, permanently, and the ground he
+        // broke stays broken — a river will find them eventually, and that's someone's problem.
+        val centre = poseidon.location
+        repeat(6) {
+            val angle = Math.random() * Math.PI * 2
+            val length = 3 + (Math.random() * 6).toInt()
+            for (step in 1..length) {
+                val spot = centre.clone().add(Math.cos(angle) * step, -1.0, Math.sin(angle) * step)
+                for (depth in 0..2) {
+                    val block = spot.clone().add(0.0, -depth.toDouble(), 0.0).block
+                    if (block.type.isSolid) block.type = org.bukkit.Material.AIR
+                }
+            }
+        }
+        poseidon.world.createExplosion(centre, 0f, false, false)
         return true
     }
 }
@@ -355,9 +387,70 @@ class HundredfoldPower(private val context: AddonContext) : Power {
         hit.forEach { victim ->
             victim.velocity = victim.location.toVector().subtract(giant.location.toVector()).normalize().multiply(2.0).setY(0.8)
             victim.damage(12.0, giant)
+
+            // He throws MOUNTAINS. Real falling blocks, torn out of the ground under him and
+            // dropped on them from above — the world is visibly worse afterwards, which is the
+            // entire difference between a power and a potion effect.
+            repeat(4) {
+                val above = victim.location.clone().add(
+                    (-2..2).random().toDouble(), 12.0, (-2..2).random().toDouble(),
+                )
+                val rock = giant.world.spawnFallingBlock(above, org.bukkit.Material.STONE.createBlockData())
+                rock.dropItem = false
+                rock.setHurtEntities(true)
+            }
         }
-        giant.world.createExplosion(giant.location, 0f, false, false)
+        giant.world.createExplosion(giant.location, 0f, false, true)
         giant.sendMessage(mm("<dark_aqua>Fifty heads. A hundred hands. <gray>They did not think this through."))
+        return true
+    }
+}
+
+/**
+ * Gaia's power — and Gaia belongs to a *different addon*.
+ *
+ * EraOfCreation registered her with `birth`, `sickle` and nothing else. This addon
+ * called `mythos.roles.extend("gaia")` and gave her one more, because in this age she is
+ * no longer the mother — she's the grandmother who has seen this exact thing happen
+ * before and cannot stop watching it happen again.
+ *
+ * That is the whole worldbuilding argument for extension: a character *changes* as the
+ * story moves, and the addon that changes her doesn't have to be the addon that made her.
+ */
+class ProphesyPower(private val mythos: Mythos, private val context: AddonContext) : Power {
+    override val id = "prophesy"
+    override val displayName = "Tell Them How It Ends"
+    override val description = "You have watched this before. Say so, out loud, to someone who won't listen. /power prophesy <player>"
+    override val cooldownSeconds = 600
+
+    override fun use(ctx: PowerContext): Boolean {
+        val gaia = ctx.player
+        val target = ctx.args.firstOrNull()?.let { Bukkit.getPlayerExact(it) }
+            ?: return false.also { gaia.sendMessage(mm("<red>/power prophesy <player>")) }
+
+        val role = mythos.roles.roleOf(target.uniqueId)
+        val prophecy = when (role?.id) {
+            "kronos" ->
+                "<gold>Kronos<gray>. You will be put down by your own son, exactly as you put down your father. " +
+                    "<i>You already know this. That is why you are so frightened."
+            "zeus" ->
+                "<yellow>Zeus<gray>. You will win, and then you will spend eternity afraid of a child you haven't had yet. " +
+                    "<i>It runs in the family."
+            null -> "<gray>You are nobody, and so nothing happens to you. <i>Enjoy it while it lasts."
+            else ->
+                "<gray>${role.displayName}<gray>. The Earth has seen your kind before, and buried them, " +
+                    "<i>and grown grass on top."
+        }
+
+        context.schedulers.global {
+            Bukkit.getServer().sendMessage(mm("<dark_gray>» <green>Gaia <gray>speaks, and the ground speaks with her:"))
+            Bukkit.getServer().sendMessage(mm("<dark_gray>   <i>$prophecy"))
+        }
+        mythos.chronicle.record("story", "<green>Gaia <gray>prophesied to <white>${target.name}<gray>, who did not listen.")
+
+        context.schedulers.entity(target) {
+            target.sendMessage(mm("<dark_gray><i>The ground under you does not feel entirely solid any more."))
+        }
         return true
     }
 }

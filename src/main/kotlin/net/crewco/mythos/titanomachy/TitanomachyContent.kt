@@ -6,9 +6,18 @@ import net.crewco.mythos.api.era.Objective
 import net.crewco.mythos.api.role.ClaimResult
 import net.crewco.mythos.api.role.ClaimRule
 import net.crewco.mythos.api.role.ClaimRules
+import net.crewco.mythos.api.role.Endurance
 import net.crewco.mythos.api.role.RoleDefinition
 import net.crewco.mythos.api.role.RoleTier
+import net.crewco.mythos.api.realm.RealmDefinition
+import net.crewco.mythos.api.realm.RealmKind
+import net.crewco.mythos.api.realm.RealmRules
 import net.crewco.mythos.api.role.Succession
+import org.bukkit.potion.PotionEffectType
+import net.crewco.mythos.api.story.beats
+import net.crewco.mythos.api.story.line
+import net.crewco.mythos.api.story.pause
+import net.crewco.mythos.api.story.title
 
 /**
  * The cast of the war.
@@ -47,6 +56,35 @@ class TitanomachyContent(private val mythos: Mythos) {
             "Kronos took the sickle to his father, and learned exactly one lesson from it:",
             "that a son does this. So he ate them, as they came. All but one.",
         ),
+        prologue = beats {
+            pause(20)
+            line("<gold>Kronos wears the sickle now.", delayTicks = 40)
+            line("<gray>He knows exactly one thing about the world, and he learned it from his father:", delayTicks = 55)
+            line("<dark_gray><i>that a son does this.", delayTicks = 45)
+            pause(40)
+            line("<gray>So when his children are born, he does the only reasonable thing.", delayTicks = 55)
+            line("<dark_gray><i>He eats them.", delayTicks = 50)
+            pause(40)
+            line("<white>Rhea will bear six. <gold>/power bear <gray>· <white>She gets to save exactly one. <gold>/power stone", delayTicks = 30)
+        },
+
+        epilogue = beats {
+            pause(30)
+            title(
+                "<gold>Kronos Falls",
+                "<gray>as far below the earth as the sky is above it",
+                delayTicks = 20,
+                sound = "minecraft:entity.wither.death",
+            )
+            pause(60)
+            line("<gray>They throw him down, and a hundred hands close the gate behind him.", delayTicks = 55)
+            line("<dark_gray><i>He was a son once. He will have a very long time to think about that.", delayTicks = 60)
+            pause(50)
+            line("<gray>Three brothers stand in the wreckage of the world, and there is nobody left to stop them.", delayTicks = 60)
+            line("<dark_gray><i>So they do the thing that always happens next. They divide it.", delayTicks = 55)
+            pause(60)
+        },
+
         objectives = listOf(
             Objective("the_swallowing", "Kronos devours his children"),
             Objective("the_stone", "A stone is swaddled and swallowed in a child's place", hidden = true),
@@ -104,7 +142,9 @@ class TitanomachyContent(private val mythos: Mythos) {
         color = "<dark_aqua>",
         lore = listOf(lore, "You begin at the bottom of Tartarus. Someone will have to come down for you."),
         powers = powers,
-        claimRules = listOf(ClaimRules.duringEra(ERA)),
+        // sinceEra: they outlive the war. Hephaestus will be working with them for the
+        // rest of the mythology.
+        claimRules = listOf(ClaimRules.sinceEra(ERA)),
     )
 
     val cyclopes = listOf(
@@ -130,7 +170,13 @@ class TitanomachyContent(private val mythos: Mythos) {
         maxHolders = 60,
         color = color,
         lore = listOf(lore, "You will die. Probably more than once. The war does not notice."),
+        // duringEra is correct here, and only here: when the war ends, the armies go
+        // home. A vacant seat in a disbanded army is not something to advertise.
         claimRules = listOf(onlyOnceWarBegins, ClaimRules.duringEra(ERA)),
+        // And when the age turns, the sixty of them are dissolved back into the spirit
+        // world — with essence, an epithet, and a place at the front of the queue for
+        // whatever the next story needs. Ninety players don't stay Titan-sworn forever.
+        endurance = Endurance.ERA,
     )
 
     val armies = listOf(
@@ -184,6 +230,41 @@ class TitanomachyContent(private val mythos: Mythos) {
             mythos.roles.register(it.copy(powers = (it.powers + listOf("bear", "stone")).distinct()))
         }
     }
+
+    /**
+     * **Kronos's stomach is a world.**
+     *
+     * A tiny, dark, still one, with a floor of raw flesh and nothing else, and the only people
+     * in it are the gods he has eaten. "You can hear your siblings breathing" stops being a
+     * line of flavour text the moment they are *actually in there with you*.
+     *
+     * `flagged(SWALLOWED)` — you cannot walk in and you cannot walk out. You are put here.
+     */
+    val STOMACH = RealmDefinition(
+        id = "stomach",
+        displayName = "The Stomach of Kronos",
+        kind = RealmKind.VOID,
+        access = RealmRules.flagged(SWALLOWED),
+        refusal = "<dark_red>You are not in there. <dark_gray><i>Be glad.",
+        entryLore = listOf(
+            "<dark_red><i>It is dark, and wet, and it is moving.",
+            "<gray><i>You are not dead. You are <white>inside him<gray>, and so are the others.",
+        ),
+        ambient = listOf(PotionEffectType.BLINDNESS, PotionEffectType.SLOWNESS),
+        still = true,
+        platformRadius = 6,
+        platformMaterial = "CRIMSON_NYLIUM",
+    )
+
+    /** If EraOfCreation isn't installed, somebody still has to dig the pit. */
+    val TARTARUS_FALLBACK = RealmDefinition(
+        id = "tartarus",
+        displayName = "Tartarus",
+        kind = RealmKind.NETHER,
+        access = RealmRules.any(RealmRules.DIVINE, RealmRules.flagged(IMPRISONED)),
+        entryLore = listOf("<dark_red><i>An anvil would fall for nine days to get here."),
+        ambient = listOf(PotionEffectType.BLINDNESS, PotionEffectType.MINING_FATIGUE),
+    )
 
     companion object {
         const val ERA = "titanomachy"

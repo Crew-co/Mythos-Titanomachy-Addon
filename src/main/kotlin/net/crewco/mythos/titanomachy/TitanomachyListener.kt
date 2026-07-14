@@ -19,6 +19,7 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerInteractEntityEvent
+import net.crewco.mythos.api.event.MythosResetEvent
 import org.bukkit.event.player.PlayerJoinEvent
 
 class TitanomachyListener(
@@ -36,16 +37,24 @@ class TitanomachyListener(
     @EventHandler
     fun onEra(event: EraAdvancedEvent) {
         if (event.to.id != ERA) return
+
         // Kronos and Rhea were only Titans a moment ago. Now they have work.
         content.grantWarPowers()
 
-        Bukkit.getServer().sendMessage(mm("<gold>Kronos wears the sickle now."))
-        Bukkit.getServer().sendMessage(mm("<gray>He has learned exactly one lesson from it, and it is the wrong one."))
-
-        mythos.roles.holders("rhea").mapNotNull { Bukkit.getPlayer(it) }.forEach { rhea ->
-            context.schedulers.entity(rhea) {
-                rhea.sendMessage(mm("<gold>You will have six children. <white>/power bear <spirit> <olympian>"))
-                rhea.sendMessage(mm("<dark_gray><i>He will eat them as they come. You get to save exactly one: /power stone"))
+        // NOT a broadcast. The era's prologue already told the whole server what has
+        // happened, at the right pace, while the world held still. This is the part only
+        // two people need — and it arrives after the scene, not on top of it.
+        context.schedulers.globalDelayed(40) {
+            mythos.roles.holders("rhea").mapNotNull { Bukkit.getPlayer(it) }.forEach { rhea ->
+                context.schedulers.entity(rhea) {
+                    rhea.sendMessage(mm("<gold>You are going to have six children, and he is going to eat them."))
+                    rhea.sendMessage(mm("<white>/power bear <spirit> <olympian> <dark_gray>· <white>/power stone <child> <dark_gray>(once. only once.)"))
+                }
+            }
+            mythos.roles.holders("kronos").mapNotNull { Bukkit.getPlayer(it) }.forEach { kronos ->
+                context.schedulers.entity(kronos) {
+                    kronos.sendMessage(mm("<gold>You know what your children are for. <white>/power devour"))
+                }
             }
         }
     }
@@ -54,11 +63,16 @@ class TitanomachyListener(
 
     @EventHandler
     fun onClaimed(event: RoleClaimedEvent) {
+        // An ally contributed by another addon brought an objective with it. Striking it
+        // is as simple as this: complete() no-ops if no such objective exists, so we
+        // don't need to know which roles came from where.
+        mythos.eras.complete(ERA, "ally_${event.role.id}", "${event.role.displayName} came over")
+
         val prisoner = (content.cyclopes + content.hekatoncheires).any { it.id == event.role.id }
         if (!prisoner) return
         places.imprison(
             event.player,
-            places.tartarus(),
+            "tartarus",
             IMPRISONED,
             "<dark_red>Uranus put you here before there were gods. <gray>Nobody has been down since.",
         )
@@ -70,8 +84,8 @@ class TitanomachyListener(
         val profile = mythos.profiles.profile(event.player.uniqueId)
         context.schedulers.entityDelayed(event.player, 20, retired = null) {
             when {
-                profile.hasFlag(SWALLOWED) -> places.leash(event.player, places.stomach(), SWALLOWED)
-                profile.hasFlag(IMPRISONED) -> places.leash(event.player, places.tartarus(), IMPRISONED)
+                profile.hasFlag(SWALLOWED) -> places.leash(event.player, "stomach", SWALLOWED)
+                profile.hasFlag(IMPRISONED) -> places.leash(event.player, "tartarus", IMPRISONED)
             }
         }
     }
@@ -102,21 +116,21 @@ class TitanomachyListener(
             .filter { mythos.profiles.profile(it.uniqueId).hasFlag(SWALLOWED) }
 
         brought.forEach { child ->
-            places.release(
-                child,
-                SWALLOWED,
-                places.surface(),
-                "<yellow>You come up whole, and adult, and extremely angry.",
-            )
+            places.release(child, SWALLOWED, "gaia", "<yellow>You come up whole, and adult, and extremely angry.")
         }
 
-        Bukkit.getServer().sendMessage(mm(""))
-        Bukkit.getServer().sendMessage(mm("<gray>Kronos brings up a stone first. Then five gods, in reverse order,"))
-        Bukkit.getServer().sendMessage(mm("<gray>fully grown, and all of them know exactly whose fault this is."))
-        Bukkit.getServer().sendMessage(mm(""))
-        Bukkit.getServer().sendMessage(mm("<gold><b>THE WAR BEGINS.</b> <gray>Choose a side: <white>/claim titan-sworn <gray>· <white>/claim olympian-sworn"))
-        Bukkit.getServer().sendMessage(mm("<dark_gray><i>The Cyclopes are still at the bottom of Tartarus. Somebody should go and get them."))
-        Bukkit.getServer().sendMessage(mm(""))
+        context.schedulers.global {
+            listOf(
+                "",
+                "<gray>Kronos brings up a stone first. Then five gods, in reverse order,",
+                "<gray>fully grown, and all of them know exactly whose fault this is.",
+                "",
+                "<gold><b>THE WAR BEGINS.</b> <gray>Choose a side: <white>/claim titan-sworn <gray>· <white>/claim olympian-sworn",
+                "<dark_gray><i>The Cyclopes are still at the bottom of Tartarus. Somebody should go and get them.",
+                ""
+            ).forEach { Bukkit.broadcast(mm(it)) }
+        }
+
 
         mythos.eras.complete(ERA, "the_disgorging", "everything he swallowed came back up")
 
@@ -139,6 +153,9 @@ class TitanomachyListener(
         counter.incrementAndGet()
         val total = war.total()
         context.schedulers.async { war.save() }
+
+        // Ten years of war is 200 bodies with a hundred players and one body with one.
+        val killsToEnd = mythos.dev.threshold(this.killsToEnd)
 
         if (total % announceEvery == 0 && total < killsToEnd) {
             Bukkit.getServer().sendMessage(
@@ -195,6 +212,18 @@ class TitanomachyListener(
             mythos.roles.seal("kronos", "bound in Tartarus, under a hundred hands")
             mythos.eras.complete(ERA, "kronos_bound", "the harvest was cut down in its turn")
         }
+    }
+
+    /**
+     * The engine has wiped the world. It doesn't know this addon keeps a kill tally in
+     * war.yml — only we know that, so only we can clean it up.
+     */
+    @EventHandler
+    fun onReset(event: MythosResetEvent) {
+        if (event.scope == MythosResetEvent.Scope.PLAYER) return // we hold no per-player state of our own
+        war.clear()
+        context.schedulers.async { war.save() }
+        context.logger.info("War tally cleared. The ten years did not happen.")
     }
 
     // ---- sides ---------------------------------------------------------------
