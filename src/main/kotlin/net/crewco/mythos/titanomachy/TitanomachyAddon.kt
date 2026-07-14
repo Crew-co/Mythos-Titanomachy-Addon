@@ -57,6 +57,7 @@ class TitanomachyAddon : AddonBase() {
         mythos.powers.register(QuakePower(context))
         mythos.powers.register(UnseenPower(context))
         mythos.powers.register(HundredfoldPower(context))
+        mythos.powers.register(TartarusGatePower(mythos, context))
         mythos.powers.register(ProphesyPower(mythos, context))
 
         // ---- reaching into a story this addon didn't write ---------------------
@@ -111,6 +112,15 @@ class TitanomachyAddon : AddonBase() {
         // One tick later every other addon has registered its cast, so "does Kronos
         // already exist?" finally has a truthful answer. This is the soft-dependency
         // pattern — use it any time an addon wants to *extend* a myth it doesn't own.
+        /*
+         * THE HELM OF DARKNESS IS A KEY, and this needed nothing from the engine.
+         *
+         * `RealmAccess` hands you the Player, so a rule can look at what they're holding. The Cyclopes
+         * forged the Helm four chapters ago as a combat item; it turns out to also be the reason
+         * Hades can walk in and out of a prison nobody else can enter. Which is what it was FOR.
+         */
+        mythos.realms.grant("tartarus") { player, _ -> Regalia.held(player, Regalia.HELM, context) }
+
         context.schedulers.globalDelayed(1) {
             content.registerFallbacks()
             if (mythos.eras.currentId() == ERA) {

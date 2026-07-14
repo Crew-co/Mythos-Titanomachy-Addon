@@ -4,8 +4,6 @@ import net.crewco.mythos.addon.AddonContext
 import net.crewco.mythos.api.Mythos
 import net.crewco.mythos.command.CommandContext.Companion.mm
 import org.bukkit.entity.Player
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
  * Two prisons, and both of them are worlds now.
@@ -61,8 +59,8 @@ class Places(
         val world = mythos.realms.world("gaia") ?: return null
         val angle = Math.random() * Math.PI * 2
         val distance = 1500 + Math.random() * 1500
-        val x = world.spawnLocation.x + cos(angle) * distance
-        val z = world.spawnLocation.z + sin(angle) * distance
+        val x = world.spawnLocation.x + Math.cos(angle) * distance
+        val z = world.spawnLocation.z + Math.sin(angle) * distance
         return org.bukkit.Location(world, x, world.getHighestBlockYAt(x.toInt(), z.toInt()) + 1.0, z)
     }
 }

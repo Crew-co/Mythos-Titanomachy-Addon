@@ -9,3 +9,12 @@ war:
   kills-to-end: 200
   # Announce the tally every N kills.
   announce-every: 25
+
+# Where the swallowed go, and where the Cyclopes rot. Both are dug relative to the
+# spawn of this world; if it's empty, the server's first world is used.
+places:
+  world: ""
+  stomach-offset: [ 0, 0 ]     # x, z from spawn
+  tartarus-offset: [ 200, 0 ]
+  # How far a prisoner may wander before the walls pull them back.
+  leash-radius: 24

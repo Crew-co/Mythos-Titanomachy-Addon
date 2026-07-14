@@ -154,9 +154,9 @@ class TitanomachyContent(private val mythos: Mythos) {
     )
 
     val hekatoncheires = listOf(
-        prisoner("cottus", "Cottus", "A hundred hands. Fifty heads. Nobody has ever been glad to see you.", listOf("hundredfold")),
-        prisoner("briareos", "Briareos", "The strong one. Even the gods will call you up when they're frightened.", listOf("hundredfold")),
-        prisoner("gyges", "Gyges", "You throw mountains. That is the whole of it.", listOf("hundredfold")),
+        prisoner("cottus", "Cottus", "A hundred hands. Fifty heads. Nobody has ever been glad to see you.", listOf("hundredfold", "tartarus_gate")),
+        prisoner("briareos", "Briareos", "The strong one. Even the gods will call you up when they're frightened.", listOf("hundredfold", "tartarus_gate")),
+        prisoner("gyges", "Gyges", "You throw mountains. That is the whole of it.", listOf("hundredfold", "tartarus_gate")),
     )
 
     // ---- everyone else ------------------------------------------------------
@@ -251,6 +251,9 @@ class TitanomachyContent(private val mythos: Mythos) {
             "<gray><i>You are not dead. You are <white>inside him<gray>, and so are the others.",
         ),
         ambient = listOf(PotionEffectType.BLINDNESS, PotionEffectType.SLOWNESS),
+        // It is moving. You can hear it moving.
+        ambientSound = "minecraft:entity.warden.heartbeat",
+        ambientParticle = "FALLING_DRIPSTONE_LAVA",
         still = true,
         platformRadius = 6,
         platformMaterial = "CRIMSON_NYLIUM",

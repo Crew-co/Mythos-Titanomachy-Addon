@@ -4,12 +4,14 @@ import net.crewco.mythos.addon.AddonContext
 import net.crewco.mythos.api.Mythos
 import net.crewco.mythos.api.power.Power
 import net.crewco.mythos.api.power.PowerContext
+import net.crewco.mythos.api.realm.Gateway
 import net.crewco.mythos.command.CommandContext.Companion.mm
 import net.crewco.mythos.titanomachy.TitanomachyContent.Companion.ERA
 import net.crewco.mythos.titanomachy.TitanomachyContent.Companion.HIDDEN
 import net.crewco.mythos.titanomachy.TitanomachyContent.Companion.IMPRISONED
 import net.crewco.mythos.titanomachy.TitanomachyContent.Companion.SWALLOWED
 import org.bukkit.Bukkit
+import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
@@ -140,7 +142,7 @@ class StonePower(
 
         mythos.profiles.profile(target.uniqueId).setFlag(HIDDEN, true)
 
-        val kronos = mythos.roles.holders("kronos").firstNotNullOfOrNull { Bukkit.getPlayer(it) }
+        val kronos = mythos.roles.holders("kronos").mapNotNull { Bukkit.getPlayer(it) }.firstOrNull()
         if (kronos == null) {
             rhea.sendMessage(mm("<red>He isn't here to be lied to.")); return false
         }
@@ -272,8 +274,7 @@ class ForgePower(
             god.inventory.addItem(Regalia.item(kind, context))
             god.sendMessage(mm("<gold>The Cyclopes give you a gift. <gray>It is the reason you win."))
         }
-        context.schedulers.global { Bukkit.getServer().sendMessage(mm("<dark_gray>» <dark_aqua>${smith.name} <gray>forges something for <yellow>$godId<gray>."))
-        }
+        Bukkit.getServer().sendMessage(mm("<dark_gray>» <dark_aqua>${smith.name} <gray>forges something for <yellow>$godId<gray>."))
         context.schedulers.async { war.save() }
         return true
     }
@@ -442,15 +443,100 @@ class ProphesyPower(private val mythos: Mythos, private val context: AddonContex
                     "<i>and grown grass on top."
         }
 
-        context.schedulers.global {
-            Bukkit.getServer().sendMessage(mm("<dark_gray>» <green>Gaia <gray>speaks, and the ground speaks with her:"))
-            Bukkit.getServer().sendMessage(mm("<dark_gray>   <i>$prophecy"))
-        }
+        Bukkit.getServer().sendMessage(mm("<dark_gray>» <green>Gaia <gray>speaks, and the ground speaks with her:"))
+        Bukkit.getServer().sendMessage(mm("<dark_gray>   <i>$prophecy"))
         mythos.chronicle.record("story", "<green>Gaia <gray>prophesied to <white>${target.name}<gray>, who did not listen.")
 
         context.schedulers.entity(target) {
             target.sendMessage(mm("<dark_gray><i>The ground under you does not feel entirely solid any more."))
         }
         return true
+    }
+}
+
+/**
+ * **The gate of Tartarus, and the hundred hands on it.**
+ *
+ * In the poem, the Hekatoncheires don't go home after the war. They stay at the gate, *forever*, so
+ * that what is down there stays down there. It is the only job in Greek myth that is purely custodial
+ * and it is the reason the world holds.
+ *
+ * So: they cut the gate themselves, out of obsidian, and it stands in the open world. A god can walk
+ * down it — to look at what he did, or to put someone else in. Nobody else gets past, and nothing
+ * gets out, because three players are standing on it.
+ */
+class TartarusGatePower(
+    private val mythos: Mythos,
+    private val context: AddonContext,
+) : Power {
+    override val id = "tartarus_gate"
+    override val displayName = "Set the Gate"
+    override val description = "Build the gate of Tartarus, and then stand on it forever. /power tartarus_gate [close]"
+    override val cooldownSeconds = 0
+
+    override fun use(ctx: PowerContext): Boolean {
+        val giant = ctx.player
+
+        // They can seal it. That is, in the poem, the entire job — and it means the three of them
+        // can shut the door on the gods too, if the gods give them a reason.
+        if (ctx.args.firstOrNull()?.equals("close", true) == true) {
+            if (mythos.realms.gateways().none { it.id == GATE }) {
+                giant.sendMessage(mm("<red>There is no gate to shut."))
+                return false
+            }
+            mythos.realms.closeGateway(GATE)
+            mythos.terraform.heal("titanomachy:gate")
+
+            Bukkit.getServer().sendMessage(mm("<dark_gray>» <dark_aqua>A hundred hands <gray>close over the gate of Tartarus, and it is not there any more."))
+            Bukkit.getServer().sendMessage(mm("<dark_gray><i>   Nothing gets out. That was always the point. <gray>Nothing gets <white>in<gray>, either."))
+            mythos.chronicle.record("story", "<dark_aqua>The Hekatoncheires <gray>sealed the gate of Tartarus. Even the gods are on the outside of it now.")
+            return true
+        }
+
+        if (mythos.profiles.profile(giant.uniqueId).hasFlag(TitanomachyContent.IMPRISONED)) {
+            giant.sendMessage(mm("<red>You are on the wrong side of it. <dark_gray><i>Somebody has to come down for you first."))
+            return false
+        }
+        if (mythos.realms.realmOf(giant)?.id != "gaia") {
+            giant.sendMessage(mm("<red>Set it in the world above. <gray>A gate is only a gate if it has two sides."))
+            return false
+        }
+        if (mythos.realms.gateways().any { it.id == GATE }) {
+            giant.sendMessage(mm("<red>It is set. <gray>Now stand on it. <dark_gray><i>That is the rest of your life."))
+            return false
+        }
+
+        val here = giant.location.clone()
+        val scar = mythos.terraform.scar("titanomachy:gate")
+        for (x in -2..2) for (z in -2..2) {
+            val edge = maxOf(kotlin.math.abs(x), kotlin.math.abs(z)) == 2
+            for (y in 0..2) {
+                val block = here.clone().add(x.toDouble(), y.toDouble(), z.toDouble()).block
+                if (edge) scar.set(block, Material.OBSIDIAN) else scar.set(block, Material.AIR)
+            }
+        }
+        scar.set(here.clone().add(0.0, -1.0, 0.0).block, Material.CRYING_OBSIDIAN)
+
+        mythos.realms.openGateway(
+            Gateway(
+                id = GATE,
+                at = here,
+                toRealm = "tartarus",
+                radius = 2.5,
+                arrival = "<dark_red><i>Nine days an anvil would fall, to get where you are standing.",
+                refusal = "<dark_gray><i>A hundred hands close over the gate. <gray>Not you. Not ever.",
+                particle = "ASH",
+                sound = "minecraft:ambient.nether_wastes.mood",
+            ),
+        )
+
+        Bukkit.getServer().sendMessage(mm("<dark_gray>» <dark_aqua>The Hundred-Handed <gray>set the gate of Tartarus at <white>${here.blockX}, ${here.blockY}, ${here.blockZ}<gray>."))
+        Bukkit.getServer().sendMessage(mm("<dark_gray><i>   They will not leave it. That is the entire arrangement, and it is why the world holds."))
+        mythos.chronicle.record("story", "<dark_aqua>The Hekatoncheires <gray>set the gate of Tartarus, and stood on it. They are still standing on it.")
+        return true
+    }
+
+    private companion object {
+        const val GATE = "gate-of-tartarus"
     }
 }

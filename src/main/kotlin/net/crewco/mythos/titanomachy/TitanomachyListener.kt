@@ -119,18 +119,13 @@ class TitanomachyListener(
             places.release(child, SWALLOWED, "gaia", "<yellow>You come up whole, and adult, and extremely angry.")
         }
 
-        context.schedulers.global {
-            listOf(
-                "",
-                "<gray>Kronos brings up a stone first. Then five gods, in reverse order,",
-                "<gray>fully grown, and all of them know exactly whose fault this is.",
-                "",
-                "<gold><b>THE WAR BEGINS.</b> <gray>Choose a side: <white>/claim titan-sworn <gray>· <white>/claim olympian-sworn",
-                "<dark_gray><i>The Cyclopes are still at the bottom of Tartarus. Somebody should go and get them.",
-                ""
-            ).forEach { Bukkit.broadcast(mm(it)) }
-        }
-
+        Bukkit.getServer().sendMessage(mm(""))
+        Bukkit.getServer().sendMessage(mm("<gray>Kronos brings up a stone first. Then five gods, in reverse order,"))
+        Bukkit.getServer().sendMessage(mm("<gray>fully grown, and all of them know exactly whose fault this is."))
+        Bukkit.getServer().sendMessage(mm(""))
+        Bukkit.getServer().sendMessage(mm("<gold><b>THE WAR BEGINS.</b> <gray>Choose a side: <white>/claim titan-sworn <gray>· <white>/claim olympian-sworn"))
+        Bukkit.getServer().sendMessage(mm("<dark_gray><i>The Cyclopes are still at the bottom of Tartarus. Somebody should go and get them."))
+        Bukkit.getServer().sendMessage(mm(""))
 
         mythos.eras.complete(ERA, "the_disgorging", "everything he swallowed came back up")
 
